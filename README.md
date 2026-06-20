@@ -16,7 +16,7 @@ It's just meant to be a solid foundation for your notes. Plus, I like the dark a
 - **100% Local & Offline:** Works fully offline (it's a PWA using IndexedDB). Once you load it, you can turn off Wi-Fi and it still works. You can install it as a desktop app too.
 - **Custom Undo/Redo:** The native `Ctrl+Z` in React usually deletes huge chunks of text. I wrote a custom engine that tracks when you pause typing (500ms) so undo/redo actually makes sense.
 - **Backups:** Auto-saves a snapshot every 60 seconds in the background. If you mess up, check `Edit -> Version History` to restore an older version.
-- **Exports:** Dumps notes to `.md`, `.txt`, `.html`, or `.pdf`.
+- **Exports:** Dumps notes to `.md`, `.txt`, `.html`, or `.pdf` (Note: `.pdf` export is currently not working).
 
 ## Tech Stack
 Kept it minimal.
