@@ -4,9 +4,9 @@ I got really tired of bloated note-taking apps. I love Obsidian, but sometimes I
 
 So I built **Gravel**. 
 
-It’s an entirely browser-based, front-end only markdown editor. It’s heavily inspired by Photopea - you just open the site, and the editor is right there. No BS. 
+It’s an entirely browser-based markdown editor. It’s heavily inspired by Photopea - you just open the site, and the editor is right there. No BS. 
 
-Everything you type is saved locally in your browser. Zero data leaves your computer. It’s fast, private, and works offline.
+Everything you type is saved locally in your browser. Zero data leaves your computer (later will add login and saving data if the user wants too). It’s fast, private, and works offline.
 
 ## Why "Gravel"?
 It's just meant to be a solid foundation for your notes. Plus, I like the dark aesthetic. 

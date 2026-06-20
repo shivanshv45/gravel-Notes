@@ -1,6 +1,6 @@
 # Gravel Frontend
 
-This directory contains the React application for Gravel. It is a 100% front-end only, PWA-enabled markdown editor with local storage.
+This directory contains the React application for Gravel.
 
 ## Tech Stack
 - **Framework:** React 19 + Vite
