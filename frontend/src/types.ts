@@ -39,4 +39,5 @@ export interface MenuActions {
   onShowMarkdownGuide: () => void;
   onShowAbout: () => void;
   onShowVersionHistory: () => void;
+  onShowSettings: () => void;
 }

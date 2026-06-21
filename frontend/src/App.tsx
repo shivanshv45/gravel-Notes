@@ -9,6 +9,7 @@ import { Editor } from './components/Editor';
 import { LandingPage } from './components/LandingPage';
 import { HelpModal } from './components/HelpModal';
 import { VersionHistory } from './components/VersionHistory';
+import { SettingsModal } from './components/SettingsModal';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 // ─── Version snapshot interval (ms) ───
@@ -30,6 +31,7 @@ const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [helpModal, setHelpModal] = useState<'markdown-guide' | 'about' | null>(null);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,6 +50,20 @@ const App: React.FC = () => {
       const snapshotMap: Record<string, string> = {};
       storedNotes.forEach((n) => { snapshotMap[n.id] = n.content; });
       lastSnapshotRef.current = snapshotMap;
+
+      // Load Theme and Colors
+      const theme = localStorage.getItem('gravel_theme');
+      if (theme && theme !== 'dark') {
+        document.documentElement.setAttribute('data-theme', theme);
+      }
+      const customBg = localStorage.getItem('gravel_custom_bg');
+      if (customBg) {
+        document.documentElement.style.setProperty('--custom-bg', customBg);
+      }
+      const customTextColor = localStorage.getItem('gravel_custom_text_color');
+      if (customTextColor) {
+        document.documentElement.style.setProperty('--text-primary', customTextColor);
+      }
 
       setIsLoaded(true);
     };
@@ -272,6 +288,7 @@ const App: React.FC = () => {
     onShowMarkdownGuide: () => setHelpModal('markdown-guide'),
     onShowAbout: () => setHelpModal('about'),
     onShowVersionHistory: () => setShowVersionHistory(true),
+    onShowSettings: () => setShowSettings(true),
   };
 
   // ─── Render ───
@@ -403,6 +420,9 @@ const App: React.FC = () => {
           onClose={() => setShowVersionHistory(false)}
         />
       )}
+
+      {/* Settings Modal */}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   );
 };

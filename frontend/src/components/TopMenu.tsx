@@ -157,6 +157,10 @@ export const TopMenu: React.FC<TopMenuProps> = ({ actions, hasActiveNote }) => {
             <div className="dropdown-item" onClick={() => handleAction(actions.onTogglePreview)}>
               Toggle Preview Pane
             </div>
+            <Separator />
+            <div className="dropdown-item" onClick={() => handleAction(actions.onShowSettings)}>
+              Settings...
+            </div>
           </div>
         )}
       </div>

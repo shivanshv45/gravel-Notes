@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import type { Note } from '../types';
 
 interface EditorProps {
@@ -131,7 +132,7 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview }) =
         />
         {showPreview && (
           <div className="editor-preview">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
               {localContent || '*No content yet*'}
             </ReactMarkdown>
           </div>
