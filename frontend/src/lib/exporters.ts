@@ -137,33 +137,30 @@ export async function exportAsPdf(note: Note) {
   // Dynamic import so we don't bundle it if the user never exports to PDF
   const html2pdf = (await import('html2pdf.js')).default;
 
-  // Build a temporary container with the rendered markdown
-  const container = document.createElement('div');
-  container.style.cssText = `
-    position: fixed; top: -9999px; left: -9999px;
-    width: 800px; padding: 40px;
-    background: white; color: #1a1a1a;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    line-height: 1.6;
+  const htmlContent = `
+    <div style="
+      width: 800px; padding: 40px;
+      background: white; color: #1a1a1a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+    ">
+      <style>
+        h1, h2, h3, h4, h5, h6 { color: #1a1a1a; margin-top: 1em; margin-bottom: 0.5em; }
+        h1 { font-size: 2em; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.3em; }
+        h2 { font-size: 1.5em; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.3em; }
+        p { margin-bottom: 1em; }
+        ul, ol { padding-left: 2em; margin-bottom: 1em; }
+        code { background: #f0f0f0; padding: 0.2em 0.4em; border-radius: 3px; font-family: Consolas, monospace; font-size: 0.9em; }
+        pre { background: #f5f5f5; padding: 1em; border-radius: 4px; overflow-x: auto; margin-bottom: 1em; }
+        pre code { background: transparent; padding: 0; }
+        blockquote { border-left: 3px solid #007acc; padding-left: 1em; color: #666; margin-bottom: 1em; }
+        table { border-collapse: collapse; margin-bottom: 1em; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; }
+        th { background: #f0f0f0; }
+      </style>
+      ${markdownToHtml(note.content)}
+    </div>
   `;
-  container.innerHTML = `
-    <style>
-      h1, h2, h3, h4, h5, h6 { color: #1a1a1a; margin-top: 1em; margin-bottom: 0.5em; }
-      h1 { font-size: 2em; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.3em; }
-      h2 { font-size: 1.5em; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.3em; }
-      p { margin-bottom: 1em; }
-      ul, ol { padding-left: 2em; margin-bottom: 1em; }
-      code { background: #f0f0f0; padding: 0.2em 0.4em; border-radius: 3px; font-family: Consolas, monospace; font-size: 0.9em; }
-      pre { background: #f5f5f5; padding: 1em; border-radius: 4px; overflow-x: auto; margin-bottom: 1em; }
-      pre code { background: transparent; padding: 0; }
-      blockquote { border-left: 3px solid #007acc; padding-left: 1em; color: #666; margin-bottom: 1em; }
-      table { border-collapse: collapse; margin-bottom: 1em; }
-      th, td { border: 1px solid #ddd; padding: 8px 12px; }
-      th { background: #f0f0f0; }
-    </style>
-    ${markdownToHtml(note.content)}
-  `;
-  document.body.appendChild(container);
 
   const filename = `${safeFilename(note.title)}.pdf`;
 
@@ -172,13 +169,11 @@ export async function exportAsPdf(note: Note) {
       margin: 10,
       filename,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
+      html2canvas: { scale: 2, useCORS: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     })
-    .from(container)
+    .from(htmlContent)
     .save();
-
-  document.body.removeChild(container);
 }
 
 // Re-export ReactMarkdown stuff so the Editor can use it without importing separately

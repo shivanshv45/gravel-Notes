@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import { Download } from 'lucide-react';
+import { exportAsMd, exportAsTxt, exportAsHtml, exportAsPdf } from '../lib/exporters';
 import type { Note } from '../types';
 
 interface EditorProps {
@@ -16,6 +18,7 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview }) =
   // We maintain a local state to keep the textarea fully controlled without relying on the parent's
   // async state updates, which helps keep the cursor position stable.
   const [localContent, setLocalContent] = useState(note.content);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // ─── Custom Logical Undo/Redo Stack ───
   // The browser's native undo stack is easily broken in React. We build a custom one that
@@ -131,7 +134,46 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview }) =
           spellCheck="false"
         />
         {showPreview && (
-          <div className="editor-preview">
+          <div className="editor-preview" style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', top: '20px', right: '30px', zIndex: 10 }}>
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                style={{
+                  padding: '6px',
+                  background: 'var(--bg-menu)',
+                  borderRadius: '4px',
+                  border: '1px solid var(--border-color)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+                title="Export Note"
+              >
+                <Download size={16} />
+              </button>
+              {showExportMenu && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  background: 'var(--bg-menu)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  marginTop: '4px',
+                  minWidth: '120px',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  padding: '4px 0'
+                }}>
+                  <div className="dropdown-item" onClick={() => { exportAsMd(note); setShowExportMenu(false); }}>.md</div>
+                  <div className="dropdown-item" onClick={() => { exportAsTxt(note); setShowExportMenu(false); }}>.txt</div>
+                  <div className="dropdown-item" onClick={() => { exportAsHtml(note); setShowExportMenu(false); }}>.html</div>
+                  <div className="dropdown-item" onClick={() => { exportAsPdf(note); setShowExportMenu(false); }}>.pdf</div>
+                </div>
+              )}
+            </div>
             <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
               {localContent || '*No content yet*'}
             </ReactMarkdown>
