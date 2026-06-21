@@ -66,7 +66,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           {/* Logo and app name — always shown */}
           <div className="landing-branding">
             <div className="landing-logo-icon">
-              <img src="/imagev2.png" alt="Gravel Logo" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '18px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }} />
+              <img src="/imagev2.webp" alt="Gravel Logo" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '18px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }} />
             </div>
             <h1 className="landing-app-name">Gravel</h1>
           </div>
