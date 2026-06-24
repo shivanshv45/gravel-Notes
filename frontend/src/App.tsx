@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { Note, MenuActions } from './types';
+import type { Note, NoteRole, MenuActions, ShareRole } from './types';
 import { loadNotes, saveNotes, saveVersionSnapshot, deleteVersionsForNote } from './lib/storage';
 import { exportAsMd, exportAsTxt, exportAsHtml, exportAsPdf } from './lib/exporters';
 import { syncNoteToCloud, fetchCloudNotes, deleteCloudNote, syncAllNotesToCloud, subscribeToNotes, fetchSharedWithMe, subscribeToSharedNotes } from './lib/cloudSync';
@@ -40,9 +40,10 @@ const App: React.FC = () => {
 
   const lastSnapshotRef = useRef<Record<string, string>>({});
   const cloudSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // tracks which note ids were changed locally so we only sync those
   const dirtyNoteIdsRef = useRef<Set<string>>(new Set());
+
+  // maps noteId -> role for shared notes
+  const [noteRoles, setNoteRoles] = useState<Record<string, ShareRole>>({});
 
   // ─── Initialization ───
   useEffect(() => {
@@ -109,10 +110,10 @@ const App: React.FC = () => {
         return merged;
       });
 
-      // also fetch notes shared with me
       if (user.email) {
-        const shared = await fetchSharedWithMe(user.email);
+        const { notes: shared, roles } = await fetchSharedWithMe(user.email);
         setSharedNotes(shared);
+        setNoteRoles(roles);
       }
     };
 
@@ -148,19 +149,15 @@ const App: React.FC = () => {
     return unsubscribe;
   }, [user]);
 
-  // ─── Realtime subscription for shared notes ───
   useEffect(() => {
     if (!user?.email || sharedNotes.length === 0) return;
-
     const sharedIds = sharedNotes.map(n => n.id);
     const unsubscribe = subscribeToSharedNotes(
-      user.email,
       sharedIds,
       (updatedNote) => {
         setSharedNotes(prev => prev.map(n => n.id === updatedNote.id ? updatedNote : n));
       },
     );
-
     return unsubscribe;
   }, [user, sharedNotes]);
 
@@ -239,8 +236,12 @@ const App: React.FC = () => {
 
   // ─── Tab & Note Management ───
 
-  // combine own notes + shared notes for the sidebar
   const allNotes = [...notes, ...sharedNotes.filter(sn => !notes.find(n => n.id === sn.id))];
+
+  const getRoleForNote = (noteId: string): NoteRole => {
+    if (notes.find(n => n.id === noteId)) return 'owner';
+    return (noteRoles[noteId] as NoteRole) || 'viewer';
+  };
 
   const openNote = (id: string) => {
     if (!openNoteIds.includes(id)) {
@@ -548,7 +549,7 @@ const App: React.FC = () => {
                       left: 0,
                     }}
                   >
-                    <Editor note={n} onChange={updateNoteContent} showPreview={showPreview} />
+                    <Editor note={n} onChange={updateNoteContent} showPreview={showPreview} role={getRoleForNote(n.id)} />
                   </div>
                 );
               })}

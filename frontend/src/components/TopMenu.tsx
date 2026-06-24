@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { MenuActions } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 // Top menu bar — modeled after Photopea's menu system.
 // Click to open a dropdown, hover across to switch between menus,
@@ -19,6 +20,7 @@ const SHORTCUTS: Record<string, string> = {
 };
 
 export const TopMenu: React.FC<TopMenuProps> = ({ actions, hasActiveNote }) => {
+  const { user } = useAuth();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -195,12 +197,18 @@ export const TopMenu: React.FC<TopMenuProps> = ({ actions, hasActiveNote }) => {
         className="menu-item"
         onMouseEnter={() => activeMenu && setActiveMenu('Account')}
         onClick={() => toggleMenu('Account')}
+        style={{ marginLeft: 'auto' }}
       >
-        Account
+        {user ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4db6a0', display: 'inline-block' }} />
+            {user.email?.split('@')[0]}
+          </span>
+        ) : 'Sign In'}
         {activeMenu === 'Account' && (
-          <div className="menu-dropdown">
+          <div className="menu-dropdown" style={{ right: 0, left: 'auto' }}>
             <div className="dropdown-item" onClick={() => handleAction(actions.onShowAuth)}>
-              Cloud Sync / Login...
+              {user ? 'Account Settings...' : 'Sign In / Sign Up...'}
             </div>
           </div>
         )}
