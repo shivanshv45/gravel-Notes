@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Note, MenuActions } from './types';
 import { loadNotes, saveNotes, saveVersionSnapshot, deleteVersionsForNote } from './lib/storage';
 import { exportAsMd, exportAsTxt, exportAsHtml, exportAsPdf } from './lib/exporters';
+import { syncNoteToCloud, fetchCloudNotes, deleteCloudNote, syncAllNotesToCloud, subscribeToNotes, fetchSharedWithMe, subscribeToSharedNotes } from './lib/cloudSync';
+import { useAuth } from './contexts/AuthContext';
 import { TopMenu } from './components/TopMenu';
 import { TabBar } from './components/TabBar';
 import { Editor } from './components/Editor';
@@ -10,35 +12,37 @@ import { LandingPage } from './components/LandingPage';
 import { HelpModal } from './components/HelpModal';
 import { VersionHistory } from './components/VersionHistory';
 import { SettingsModal } from './components/SettingsModal';
+import { AuthModal } from './components/AuthModal';
+import { ShareModal } from './components/ShareModal';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
-// ─── Version snapshot interval (ms) ───
-// Every 60 seconds we take a snapshot of any note whose content has changed.
 const VERSION_INTERVAL_MS = 60_000;
+const CLOUD_SYNC_DEBOUNCE_MS = 1500;
 
 const App: React.FC = () => {
-  // All notes stored in IndexedDB
+  const { user } = useAuth();
+
   const [notes, setNotes] = useState<Note[]>([]);
-
-  // Which notes are currently open as tabs
+  const [sharedNotes, setSharedNotes] = useState<Note[]>([]);
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([]);
-
-  // The currently focused tab
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
-
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showPreview, setShowPreview] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [helpModal, setHelpModal] = useState<'markdown-guide' | 'about' | null>(null);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Track what the content looked like at the last version snapshot,
-  // so we only save a new snapshot if the user actually changed something.
   const lastSnapshotRef = useRef<Record<string, string>>({});
+  const cloudSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // tracks which note ids were changed locally so we only sync those
+  const dirtyNoteIdsRef = useRef<Set<string>>(new Set());
 
   // ─── Initialization ───
   useEffect(() => {
@@ -46,12 +50,10 @@ const App: React.FC = () => {
       const storedNotes = await loadNotes();
       setNotes(storedNotes);
 
-      // Seed the snapshot tracker with the current content of each note
       const snapshotMap: Record<string, string> = {};
       storedNotes.forEach((n) => { snapshotMap[n.id] = n.content; });
       lastSnapshotRef.current = snapshotMap;
 
-      // Load Theme and Colors
       const theme = localStorage.getItem('gravel_theme');
       if (theme && theme !== 'dark') {
         document.documentElement.setAttribute('data-theme', theme);
@@ -70,25 +72,124 @@ const App: React.FC = () => {
     init();
   }, []);
 
-  // ─── Auto-save to IndexedDB ───
-  // This fires on every keystroke (debounced by React batching).
-  // IndexedDB via localforage is fast enough for this.
+  // ─── Auto-save to IndexedDB (instant, every keystroke) ───
   useEffect(() => {
     if (isLoaded) {
       saveNotes(notes);
     }
   }, [notes, isLoaded]);
 
+  // ─── Cloud sync on login: merge local + cloud notes ───
+  useEffect(() => {
+    if (!user || !isLoaded) return;
+
+    const mergeCloudNotes = async () => {
+      // push all local notes to cloud first
+      await syncAllNotesToCloud(notes, user.id);
+
+      // then pull everything from cloud (includes notes from other devices)
+      const cloudNotes = await fetchCloudNotes(user.id);
+
+      setNotes(prev => {
+        const localMap = new Map(prev.map(n => [n.id, n]));
+        const merged = [...prev];
+
+        for (const cn of cloudNotes) {
+          const local = localMap.get(cn.id);
+          if (!local) {
+            // new note from another device
+            merged.push(cn);
+          } else if (cn.updatedAt > local.updatedAt) {
+            // cloud version is newer, use it
+            const idx = merged.findIndex(n => n.id === cn.id);
+            if (idx !== -1) merged[idx] = cn;
+          }
+        }
+
+        return merged;
+      });
+
+      // also fetch notes shared with me
+      if (user.email) {
+        const shared = await fetchSharedWithMe(user.email);
+        setSharedNotes(shared);
+      }
+    };
+
+    mergeCloudNotes();
+  }, [user, isLoaded]);
+
+  // ─── Realtime subscription for own notes ───
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = subscribeToNotes(
+      user.id,
+      // on insert from another device
+      (note) => {
+        setNotes(prev => {
+          if (prev.find(n => n.id === note.id)) return prev;
+          return [...prev, note];
+        });
+      },
+      // on update from another device/collaborator
+      (note) => {
+        // don't overwrite if we're the one who made the change
+        if (dirtyNoteIdsRef.current.has(note.id)) return;
+        setNotes(prev => prev.map(n => n.id === note.id ? note : n));
+      },
+      // on delete
+      (noteId) => {
+        setNotes(prev => prev.filter(n => n.id !== noteId));
+        setOpenNoteIds(prev => prev.filter(id => id !== noteId));
+      },
+    );
+
+    return unsubscribe;
+  }, [user]);
+
+  // ─── Realtime subscription for shared notes ───
+  useEffect(() => {
+    if (!user?.email || sharedNotes.length === 0) return;
+
+    const sharedIds = sharedNotes.map(n => n.id);
+    const unsubscribe = subscribeToSharedNotes(
+      user.email,
+      sharedIds,
+      (updatedNote) => {
+        setSharedNotes(prev => prev.map(n => n.id === updatedNote.id ? updatedNote : n));
+      },
+    );
+
+    return unsubscribe;
+  }, [user, sharedNotes]);
+
+  // ─── Debounced cloud sync (1.5s after last keystroke) ───
+  const scheduleCloudSync = useCallback((noteId: string) => {
+    if (!user) return;
+    dirtyNoteIdsRef.current.add(noteId);
+
+    if (cloudSyncTimerRef.current) clearTimeout(cloudSyncTimerRef.current);
+
+    cloudSyncTimerRef.current = setTimeout(() => {
+      setNotes(currentNotes => {
+        dirtyNoteIdsRef.current.forEach(id => {
+          const note = currentNotes.find(n => n.id === id);
+          if (note) syncNoteToCloud(note, user.id);
+        });
+        dirtyNoteIdsRef.current.clear();
+        return currentNotes;
+      });
+    }, CLOUD_SYNC_DEBOUNCE_MS);
+  }, [user]);
+
   // ─── Version snapshot timer ───
-  // Every 60 seconds, check every open note. If its content differs from
-  // the last snapshot, save a new version to IndexedDB.
   useEffect(() => {
     if (!isLoaded) return;
 
     const interval = setInterval(() => {
       notes.forEach((note) => {
         const lastContent = lastSnapshotRef.current[note.id];
-        // Only snapshot if the content actually changed since the last snapshot
         if (lastContent !== undefined && lastContent !== note.content) {
           saveVersionSnapshot(note);
           lastSnapshotRef.current[note.id] = note.content;
@@ -109,9 +210,7 @@ const App: React.FC = () => {
       }
       if (ctrl && e.key === 's') {
         e.preventDefault();
-        // Auto-saved already, prevent the browser's save dialog
       }
-      // Ctrl+Z and Ctrl+Y are handled natively by the textarea for undo/redo
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -140,6 +239,9 @@ const App: React.FC = () => {
 
   // ─── Tab & Note Management ───
 
+  // combine own notes + shared notes for the sidebar
+  const allNotes = [...notes, ...sharedNotes.filter(sn => !notes.find(n => n.id === sn.id))];
+
   const openNote = (id: string) => {
     if (!openNoteIds.includes(id)) {
       setOpenNoteIds((prev) => [...prev, id]);
@@ -166,19 +268,20 @@ const App: React.FC = () => {
     setNotes((prev) => [...prev, newNote]);
     setOpenNoteIds((prev) => [...prev, newNote.id]);
     setActiveNoteId(newNote.id);
-
-    // Seed the snapshot tracker for this new note
     lastSnapshotRef.current[newNote.id] = '';
+
+    // sync new note to cloud immediately
+    if (user) syncNoteToCloud(newNote, user.id);
   };
 
   const deleteNote = (id: string) => {
     if (!window.confirm('Delete this note permanently? This cannot be undone.')) return;
     setNotes((prev) => prev.filter((n) => n.id !== id));
     closeTab(id);
-
-    // Clean up version history for the deleted note
     deleteVersionsForNote(id);
     delete lastSnapshotRef.current[id];
+
+    if (user) deleteCloudNote(id);
   };
 
   const updateNoteContent = useCallback(
@@ -196,12 +299,20 @@ const App: React.FC = () => {
           note.id === activeNoteId ? { ...note, content, title, updatedAt: Date.now() } : note
         )
       );
+
+      // also update shared notes if this is a shared note being edited
+      setSharedNotes((prev) =>
+        prev.map((note) =>
+          note.id === activeNoteId ? { ...note, content, title, updatedAt: Date.now() } : note
+        )
+      );
+
+      scheduleCloudSync(activeNoteId);
     },
-    [activeNoteId]
+    [activeNoteId, scheduleCloudSync]
   );
 
   // ─── Version restore ───
-  // Called when the user picks a snapshot from the Version History modal
   const restoreVersion = (content: string, title: string) => {
     if (!activeNoteId) return;
     setNotes((prev) =>
@@ -209,14 +320,14 @@ const App: React.FC = () => {
         note.id === activeNoteId ? { ...note, content, title, updatedAt: Date.now() } : note
       )
     );
-    // Update the snapshot tracker so we don't re-snapshot the restored content immediately
     lastSnapshotRef.current[activeNoteId] = content;
+    scheduleCloudSync(activeNoteId);
   };
 
   // ─── Rename ───
   const startRename = () => {
     if (!activeNoteId) return;
-    const note = notes.find((n) => n.id === activeNoteId);
+    const note = allNotes.find((n) => n.id === activeNoteId);
     if (!note) return;
     setRenamingNoteId(activeNoteId);
     setRenameValue(note.title);
@@ -233,6 +344,7 @@ const App: React.FC = () => {
       )
     );
     setRenamingNoteId(null);
+    scheduleCloudSync(renamingNoteId);
   };
 
   // ─── File Import ───
@@ -252,6 +364,8 @@ const App: React.FC = () => {
       setOpenNoteIds((prev) => [...prev, newNote.id]);
       setActiveNoteId(newNote.id);
       lastSnapshotRef.current[newNote.id] = content;
+
+      if (user) syncNoteToCloud(newNote, user.id);
     };
     reader.readAsText(file);
   };
@@ -269,7 +383,7 @@ const App: React.FC = () => {
   };
 
   // ─── Menu Actions ───
-  const activeNote = notes.find((n) => n.id === activeNoteId) || null;
+  const activeNote = allNotes.find((n) => n.id === activeNoteId) || null;
 
   const menuActions: MenuActions = {
     onNewNote: createNewNote,
@@ -289,6 +403,14 @@ const App: React.FC = () => {
     onShowAbout: () => setHelpModal('about'),
     onShowVersionHistory: () => setShowVersionHistory(true),
     onShowSettings: () => setShowSettings(true),
+    onShowAuth: () => setShowAuthModal(true),
+    onShareNote: () => {
+      if (!user) {
+        setShowAuthModal(true);
+        return;
+      }
+      setShowShareModal(true);
+    },
   };
 
   // ─── Render ───
@@ -315,7 +437,7 @@ const App: React.FC = () => {
           onNewNote={createNewNote}
           onOpenFile={openFilePicker}
           onShowMarkdownGuide={() => setHelpModal('markdown-guide')}
-          allNotes={notes.map((n) => ({ id: n.id, title: n.title }))}
+          allNotes={allNotes.map((n) => ({ id: n.id, title: n.title }))}
           onOpenNote={openNote}
         />
       ) : (
@@ -335,6 +457,7 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="note-list">
+                {/* My notes */}
                 {notes.map((note) => (
                   <div
                     key={note.id}
@@ -365,6 +488,27 @@ const App: React.FC = () => {
                     )}
                   </div>
                 ))}
+
+                {/* Shared with me */}
+                {sharedNotes.length > 0 && (
+                  <>
+                    <div className="sidebar-header" style={{ marginTop: '8px', fontSize: '10px' }}>
+                      <span>SHARED WITH ME</span>
+                    </div>
+                    {sharedNotes.filter(sn => !notes.find(n => n.id === sn.id)).map((note) => (
+                      <div
+                        key={note.id}
+                        className={`note-list-item ${note.id === activeNoteId ? 'active' : ''}`}
+                        onClick={() => openNote(note.id)}
+                        style={{ opacity: 0.85 }}
+                      >
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {note.title || 'Untitled Note'}
+                        </span>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -377,7 +521,7 @@ const App: React.FC = () => {
             )}
 
             <TabBar
-              notes={openNoteIds.map((id) => notes.find((n) => n.id === id)!).filter(Boolean)}
+              notes={openNoteIds.map((id) => allNotes.find((n) => n.id === id)!).filter(Boolean)}
               activeNoteId={activeNoteId}
               onSelectTab={setActiveNoteId}
               onCloseTab={closeTab}
@@ -385,7 +529,7 @@ const App: React.FC = () => {
 
             <div className="editors-wrapper" style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
               {openNoteIds.map((id) => {
-                const n = notes.find((x) => x.id === id);
+                const n = allNotes.find((x) => x.id === id);
                 if (!n) return null;
                 return (
                   <div
@@ -423,6 +567,18 @@ const App: React.FC = () => {
 
       {/* Settings Modal */}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+
+      {/* Auth Modal */}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+
+      {/* Share Modal */}
+      {showShareModal && activeNote && (
+        <ShareModal
+          noteId={activeNote.id}
+          noteTitle={activeNote.title}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
     </div>
   );
 };

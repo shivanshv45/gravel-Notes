@@ -85,6 +85,12 @@ export const TopMenu: React.FC<TopMenuProps> = ({ actions, hasActiveNote }) => {
             >
               Delete Note
             </div>
+            <div
+              className={`dropdown-item ${!hasActiveNote ? 'disabled' : ''}`}
+              onClick={() => hasActiveNote && handleAction(actions.onShareNote)}
+            >
+              Share Note...
+            </div>
             <Separator />
             <div
               className={`dropdown-item ${!hasActiveNote ? 'disabled' : ''}`}
@@ -179,6 +185,22 @@ export const TopMenu: React.FC<TopMenuProps> = ({ actions, hasActiveNote }) => {
             </div>
             <div className="dropdown-item" onClick={() => handleAction(actions.onShowAbout)}>
               About Gravel
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ─── Account ─── */}
+      <div
+        className="menu-item"
+        onMouseEnter={() => activeMenu && setActiveMenu('Account')}
+        onClick={() => toggleMenu('Account')}
+      >
+        Account
+        {activeMenu === 'Account' && (
+          <div className="menu-dropdown">
+            <div className="dropdown-item" onClick={() => handleAction(actions.onShowAuth)}>
+              Cloud Sync / Login...
             </div>
           </div>
         )}

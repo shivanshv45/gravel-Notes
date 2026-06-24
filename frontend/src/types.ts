@@ -40,4 +40,6 @@ export interface MenuActions {
   onShowAbout: () => void;
   onShowVersionHistory: () => void;
   onShowSettings: () => void;
+  onShowAuth: () => void;
+  onShareNote: () => void;
 }
