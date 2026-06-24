@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { Download, MessageSquarePlus, Trash2, Eye, Pencil, MessageCircle } from 'lucide-react';
+import { Download, MessageSquarePlus, Trash2, Eye, Pencil, MessageCircle, Copy, Check } from 'lucide-react';
 import { exportAsMd, exportAsTxt, exportAsHtml, exportAsPdf } from '../lib/exporters';
 import { fetchComments, addComment, deleteComment, subscribeToComments } from '../lib/cloudSync';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,6 +22,7 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview, rol
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [localContent, setLocalContent] = useState(note.content);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // comment state
   const [comments, setComments] = useState<NoteComment[]>([]);
@@ -147,6 +148,12 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview, rol
     }
   };
 
+  const handleCopy = () => {
+    navigator.clipboard.writeText(localContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleDeleteComment = async (id: string) => {
     await deleteComment(id);
     setComments(prev => prev.filter(c => c.id !== id));
@@ -179,6 +186,52 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview, rol
     arr.push(c);
     lineCommentMap.set(c.line_number, arr);
   });
+
+  const actionButtons = (isVertical: boolean) => (
+    <div style={{
+      position: 'absolute', top: '20px', right: '30px', zIndex: 10,
+      display: 'flex', flexDirection: isVertical ? 'column' : 'row', gap: '8px'
+    }}>
+      <button
+        onClick={handleCopy}
+        style={{
+          padding: '6px', background: 'var(--bg-menu)', borderRadius: '4px',
+          border: '1px solid var(--border-color)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+        }}
+        title="Copy Markdown"
+      >
+        {copied ? <Check size={16} color="#4db6a0" /> : <Copy size={16} />}
+      </button>
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={() => setShowExportMenu(!showExportMenu)}
+          style={{
+            padding: '6px', background: 'var(--bg-menu)', borderRadius: '4px',
+            border: '1px solid var(--border-color)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+          }}
+          title="Export Note"
+        >
+          <Download size={16} />
+        </button>
+        {showExportMenu && (
+          <div style={{
+            position: 'absolute', top: isVertical ? 0 : '100%', right: isVertical ? '100%' : 0,
+            marginRight: isVertical ? '4px' : 0, marginTop: isVertical ? 0 : '4px',
+            background: 'var(--bg-menu)', border: '1px solid var(--border-color)', borderRadius: '4px',
+            minWidth: '120px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+            display: 'flex', flexDirection: 'column', padding: '4px 0',
+          }}>
+            <div className="dropdown-item" onClick={() => { exportAsMd(note); setShowExportMenu(false); }}>.md</div>
+            <div className="dropdown-item" onClick={() => { exportAsTxt(note); setShowExportMenu(false); }}>.txt</div>
+            <div className="dropdown-item" onClick={() => { exportAsHtml(note); setShowExportMenu(false); }}>.html</div>
+            <div className="dropdown-item" onClick={() => { exportAsPdf(note); setShowExportMenu(false); }}>.pdf</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <div className="editor-content" style={{ position: 'relative' }}>
@@ -239,36 +292,12 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview, rol
               borderRight: showPreview ? '1px solid var(--border-color)' : 'none',
             }}
           />
+          {!showPreview && actionButtons(true)}
         </div>
 
         {showPreview && (
           <div className="editor-preview" style={{ position: 'relative' }}>
-            <div style={{ position: 'absolute', top: '20px', right: '30px', zIndex: 10 }}>
-              <button
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                style={{
-                  padding: '6px', background: 'var(--bg-menu)', borderRadius: '4px',
-                  border: '1px solid var(--border-color)', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                }}
-                title="Export Note"
-              >
-                <Download size={16} />
-              </button>
-              {showExportMenu && (
-                <div style={{
-                  position: 'absolute', top: '100%', right: 0, background: 'var(--bg-menu)',
-                  border: '1px solid var(--border-color)', borderRadius: '4px', marginTop: '4px',
-                  minWidth: '120px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
-                  display: 'flex', flexDirection: 'column', padding: '4px 0',
-                }}>
-                  <div className="dropdown-item" onClick={() => { exportAsMd(note); setShowExportMenu(false); }}>.md</div>
-                  <div className="dropdown-item" onClick={() => { exportAsTxt(note); setShowExportMenu(false); }}>.txt</div>
-                  <div className="dropdown-item" onClick={() => { exportAsHtml(note); setShowExportMenu(false); }}>.html</div>
-                  <div className="dropdown-item" onClick={() => { exportAsPdf(note); setShowExportMenu(false); }}>.pdf</div>
-                </div>
-              )}
-            </div>
+            {actionButtons(false)}
             <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
               {localContent || '*No content yet*'}
             </ReactMarkdown>
