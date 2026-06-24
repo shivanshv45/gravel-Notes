@@ -47,7 +47,7 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview, rol
       historyRef.current = [note.content];
       pointerRef.current = 0;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note.content]);
 
   // load comments
@@ -123,7 +123,7 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview, rol
       window.removeEventListener('app-undo', handleUndo);
       window.removeEventListener('app-redo', handleRedo);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // get current cursor line number
@@ -160,18 +160,17 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview, rol
   };
 
   // role badge
-  const roleBadge = role !== 'owner' ? (
+  const roleBadge = (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 10px',
-      borderRadius: '4px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px',
-      background: role === 'viewer' ? 'rgba(100,149,237,0.15)' : role === 'commenter' ? 'rgba(230,126,34,0.15)' : 'rgba(77,182,160,0.15)',
-      color: role === 'viewer' ? '#6495ed' : role === 'commenter' ? '#e67e22' : '#4db6a0',
-      position: 'absolute' as const, top: '8px', left: '12px', zIndex: 10,
+      display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px',
+      borderRadius: '4px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px',
+      border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-muted)',
+      position: 'absolute' as const, bottom: '16px', right: '16px', zIndex: 10,
     }}>
       {role === 'viewer' ? <Eye size={12} /> : role === 'commenter' ? <MessageCircle size={12} /> : <Pencil size={12} />}
-      {role}
+      {role === 'owner' ? 'Editor (Owner)' : role}
     </div>
-  ) : null;
+  );
 
   // comment markers on the side
   const lineCommentMap = new Map<number, NoteComment[]>();
@@ -191,13 +190,13 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview, rol
           onClick={openCommentAtCursor}
           title="Add comment at cursor"
           style={{
-            position: 'absolute', top: '8px', left: role !== 'owner' ? '100px' : '12px', zIndex: 10,
-            padding: '4px 8px', background: 'var(--bg-menu)', border: '1px solid var(--border-color)',
-            borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px',
-            fontSize: '11px', color: 'var(--text-muted)', cursor: 'pointer',
+            position: 'absolute', top: '20px', right: showPreview ? 'calc(50% + 20px)' : '20px', zIndex: 10,
+            padding: '6px 10px', background: 'var(--bg-app)', border: '1px solid var(--border-color)',
+            borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '6px',
+            fontSize: '11px', color: 'var(--text-primary)', cursor: 'pointer',
           }}
         >
-          <MessageSquarePlus size={13} /> Comment
+          <MessageSquarePlus size={14} /> Comment
         </button>
       )}
 
@@ -214,18 +213,13 @@ export const Editor: React.FC<EditorProps> = ({ note, onChange, showPreview, rol
                   title={`${cmts.length} comment(s) on line ${line}`}
                   style={{
                     position: 'absolute',
-                    top: `${(line - 1) * 1.7 * 14 + 2}px`,
-                    left: '4px',
-                    width: '18px', height: '18px', borderRadius: '4px',
-                    background: cmts[0].color + '33',
-                    border: `2px solid ${cmts[0].color}`,
+                    top: `${(line - 1) * 1.7 * 14 + 6}px`,
+                    left: '8px',
+                    width: '4px', height: '12px', borderRadius: '2px',
+                    background: cmts[0].color,
                     cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '10px', fontWeight: 700, color: cmts[0].color,
                   }}
-                >
-                  {cmts.length}
-                </div>
+                />
               ))}
             </div>
           )}
