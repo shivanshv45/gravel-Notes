@@ -288,23 +288,28 @@ const App: React.FC = () => {
     (content: string) => {
       if (!activeNoteId) return;
 
-      let title = 'Untitled Note';
       const firstLine = content.split('\n')[0];
-      if (firstLine && firstLine.startsWith('# ')) {
-        title = firstLine.replace('# ', '').trim() || 'Untitled Note';
-      }
+      const hasHeading = firstLine && firstLine.startsWith('# ');
 
       setNotes((prev) =>
-        prev.map((note) =>
-          note.id === activeNoteId ? { ...note, content, title, updatedAt: Date.now() } : note
-        )
+        prev.map((note) => {
+          if (note.id !== activeNoteId) return note;
+          // only auto-derive title if the content starts with a markdown heading
+          const title = hasHeading
+            ? (firstLine.replace('# ', '').trim() || note.title)
+            : note.title;
+          return { ...note, content, title, updatedAt: Date.now() };
+        })
       );
 
-      // also update shared notes if this is a shared note being edited
       setSharedNotes((prev) =>
-        prev.map((note) =>
-          note.id === activeNoteId ? { ...note, content, title, updatedAt: Date.now() } : note
-        )
+        prev.map((note) => {
+          if (note.id !== activeNoteId) return note;
+          const title = hasHeading
+            ? (firstLine.replace('# ', '').trim() || note.title)
+            : note.title;
+          return { ...note, content, title, updatedAt: Date.now() };
+        })
       );
 
       scheduleCloudSync(activeNoteId);
