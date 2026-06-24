@@ -42,7 +42,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     if (error) {
       setErrorMsg(error.message);
     } else if (isSignUp) {
-      setErrorMsg('Success! You can now sign in.');
+      setErrorMsg('Success! Please check your email to confirm your account before signing in.');
       setIsSignUp(false);
       setPassword('');
     } else {
