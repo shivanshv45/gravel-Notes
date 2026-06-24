@@ -199,12 +199,7 @@ export const TopMenu: React.FC<TopMenuProps> = ({ actions, hasActiveNote }) => {
         onClick={() => toggleMenu('Account')}
         style={{ marginLeft: 'auto' }}
       >
-        {user ? (
-          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4db6a0', display: 'inline-block' }} />
-            {user.email?.split('@')[0]}
-          </span>
-        ) : 'Sign In'}
+        {user ? user.email?.split('@')[0] : 'Sign In'}
         {activeMenu === 'Account' && (
           <div className="menu-dropdown" style={{ right: 0, left: 'auto' }}>
             <div className="dropdown-item" onClick={() => handleAction(actions.onShowAuth)}>
